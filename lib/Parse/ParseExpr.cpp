@@ -517,6 +517,9 @@ ParserResult<Expr> Parser::parseExprUnary(Diag<> Message, bool isExprBasic) {
     break;
   case tok::oper_binary_spaced:
   case tok::oper_binary_unspaced: {
+      
+      return makeParserResult(parseExprIdentifier());
+      
     // For recovery purposes, accept an oper_binary here.
     SourceLoc OperEndLoc = Tok.getLoc().getAdvancedLoc(Tok.getLength());
     Tok.setKind(tok::oper_prefix);
@@ -1535,6 +1538,8 @@ ParserResult<Expr> Parser::parseExprPrimary(Diag<> ID, bool isExprBasic) {
         Kind, Loc, /*implicit=*/false));
   }
       
+        
+  case tok::oper_binary_unspaced:
   case tok::identifier:  // foo
   case tok::kw_self:     // self
 
@@ -2235,7 +2240,7 @@ DeclName Parser::parseUnqualifiedDeclName(bool afterDot,
 ///   expr-identifier:
 ///     unqualified-decl-name generic-args?
 Expr *Parser::parseExprIdentifier() {
-  assert(Tok.isAny(tok::identifier, tok::kw_self, tok::kw_Self));
+  //assert(Tok.isAny(tok::identifier, tok::kw_self, tok::kw_Self));
   SyntaxParsingContext IDSyntaxContext(SyntaxContext,
                                        SyntaxKind::IdentifierExpr);
   Token IdentTok = Tok;
@@ -2243,7 +2248,7 @@ Expr *Parser::parseExprIdentifier() {
   // Parse the unqualified-decl-name.
   DeclNameLoc loc;
   DeclName name = parseUnqualifiedDeclName(/*afterDot=*/false, loc,
-                                           diag::expected_expr);
+                                           diag::expected_expr, true);
 
   SmallVector<TypeRepr*, 8> args;
   SourceLoc LAngleLoc, RAngleLoc;
