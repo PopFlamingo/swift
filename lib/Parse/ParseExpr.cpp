@@ -518,10 +518,11 @@ ParserResult<Expr> Parser::parseExprUnary(Diag<> Message, bool isExprBasic) {
   case tok::oper_binary_spaced:
   case tok::oper_binary_unspaced: {
       
-      if (peekToken().isAny(tok::comma, tok::r_square, tok::r_paren)) {
-          return makeParserResult(parseExprIdentifier());
-      }
-      
+    // If binary op is within a parenthesed list such as within an array literal
+    // or as a function call argument, parse it as an unresolved declaration ref
+    if (peekToken().isAny(tok::comma, tok::r_square, tok::r_paren)) {
+        return makeParserResult(parseExprOperator());
+    }
       
     // For recovery purposes, accept an oper_binary here.
     SourceLoc OperEndLoc = Tok.getLoc().getAdvancedLoc(Tok.getLength());
@@ -3045,26 +3046,9 @@ ParserStatus Parser::parseExprList(tok leftTok, tok rightTok,
     if (Kind != SyntaxKind::YieldStmt)
       parseOptionalArgumentLabel(FieldName, FieldNameLoc);
 
-    // See if we have an operator decl ref '(<op>)'. The operator token in
-    // this case lexes as a binary operator because it neither leads nor
-    // follows a proper subexpression.
     ParserStatus Status;
     Expr *SubExpr = nullptr;
-    if (Tok.isBinaryOperator() && peekToken().isAny(rightTok, tok::comma)) {
-      SyntaxParsingContext operatorContext(SyntaxContext,
-                                           SyntaxKind::IdentifierExpr);
-      SourceLoc Loc;
-      Identifier OperName;
-      if (parseAnyIdentifier(OperName, Loc, diag::expected_operator_ref)) {
-        return makeParserError();
-      }
-      // Bypass local lookup. Use an 'Ordinary' reference kind so that the
-      // reference may resolve to any unary or binary operator based on
-      // context.
-      SubExpr = new(Context) UnresolvedDeclRefExpr(OperName,
-                                                   DeclRefKind::Ordinary,
-                                                   DeclNameLoc(Loc));
-    } else if (Kind == SyntaxKind::FunctionCallArgumentList &&
+    if (Kind == SyntaxKind::FunctionCallArgumentList &&
                Tok.is(tok::code_complete)) {
       // Handle call arguments specially because it may need argument labels.
       auto CCExpr = new (Context) CodeCompletionExpr(Tok.getLoc());
