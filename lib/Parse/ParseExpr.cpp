@@ -518,7 +518,10 @@ ParserResult<Expr> Parser::parseExprUnary(Diag<> Message, bool isExprBasic) {
   case tok::oper_binary_spaced:
   case tok::oper_binary_unspaced: {
       
-      return makeParserResult(parseExprIdentifier());
+      if (peekToken().isAny(tok::comma, tok::r_square, tok::r_paren)) {
+          return makeParserResult(parseExprIdentifier());
+      }
+      
       
     // For recovery purposes, accept an oper_binary here.
     SourceLoc OperEndLoc = Tok.getLoc().getAdvancedLoc(Tok.getLength());
