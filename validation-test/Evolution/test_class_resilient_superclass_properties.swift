@@ -2,7 +2,7 @@
 // REQUIRES: executable_test
 
 import StdlibUnittest
-import superclass_properties
+import class_resilient_superclass_properties
 
 
 var SuperclassPropertiesTest = TestSuite("SuperclassProperties")
@@ -16,6 +16,7 @@ SuperclassPropertiesTest.test("AddInterposingProperty") {
       override class var classProperty: String {
         return super.classProperty
       }
+      var newProperty: String = "still works"
     }
     if getVersion() == 0 {
       expectEqual(Leaf().property, "Base.property")
@@ -24,6 +25,7 @@ SuperclassPropertiesTest.test("AddInterposingProperty") {
       expectEqual(Leaf().property, "AddInterposingProperty.property")
       expectEqual(Leaf.classProperty, "AddInterposingProperty.classProperty")
     }
+    expectEqual(Leaf().newProperty, "still works")
   }
 }
 
@@ -36,6 +38,7 @@ SuperclassPropertiesTest.test("RemoveInterposingProperty") {
       override class var classProperty: String {
         return super.classProperty
       }
+      var newProperty: String = "still works"
     }
     if getVersion() == 0 {
       expectEqual(Leaf().property, "RemoveInterposingProperty.property")
@@ -44,6 +47,7 @@ SuperclassPropertiesTest.test("RemoveInterposingProperty") {
       expectEqual(Leaf().property, "Base.property")
       expectEqual(Leaf.classProperty, "Base.classProperty")
     }
+    expectEqual(Leaf().newProperty, "still works")
   }
 }
 
@@ -56,6 +60,7 @@ SuperclassPropertiesTest.test("InsertSuperclass") {
       override class var classProperty: String {
         return super.classProperty
       }
+      var newProperty: String = "still works"
     }
     if getVersion() == 0 {
       expectEqual(Leaf().property, "Base.property")
@@ -66,6 +71,7 @@ SuperclassPropertiesTest.test("InsertSuperclass") {
       expectEqual(Leaf().nonOverriddenProperty, "Base.nonOverriddenProperty")
       expectEqual(Leaf.classProperty, "InBetween.classProperty")
     }
+    expectEqual(Leaf().newProperty, "still works")
   }
 }
 
