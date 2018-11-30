@@ -521,7 +521,7 @@ ParserResult<Expr> Parser::parseExprUnary(Diag<> Message, bool isExprBasic) {
     // If binary op is within a parenthesed list such as within an array literal
     // or as a function call argument, parse it as an unresolved declaration ref
     if (peekToken().isAny(tok::comma, tok::r_square, tok::r_paren)) {
-        return makeParserResult(parseExprOperator());
+        return makeParserResult(parseExprIdentifier());
     }
       
     // For recovery purposes, accept an oper_binary here.
