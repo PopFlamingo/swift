@@ -435,10 +435,8 @@ struct ErrorTypeInVarDeclFunctionType1 {
   var v2 : Int
 }
 
-struct ErrorTypeInVarDeclArrayType1 { // expected-note{{in declaration of 'ErrorTypeInVarDeclArrayType1'}}
-  var v1 : Int[+] // expected-error {{expected declaration}} expected-error {{consecutive declarations on a line must be separated by ';'}}
-  // expected-error @-1 {{expected expression after unary operator}}
-  // expected-error @-2 {{expected expression}}
+struct ErrorTypeInVarDeclArrayType1 {
+  var v1 : Int[+] // expected-error {{array types are now written with the brackets around the element type}}
   var v2 : Int
 }
 

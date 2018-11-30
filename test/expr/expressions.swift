@@ -225,11 +225,6 @@ func test_unary2() {
   // FIXME: second diagnostic is redundant.
   x = &; // expected-error {{expected expression after unary operator}} expected-error {{expected expression in assignment}}
 }
-func test_unary3() {
-  var x: Int
-  // FIXME: second diagnostic is redundant.
-  x = &, // expected-error {{expected expression after unary operator}} expected-error {{expected expression in assignment}}
-}
 
 func test_as_1() {
   var _: Int
@@ -929,3 +924,48 @@ let _ = "foo \(42 /*
 // expected-error @-3 {{unterminated string literal}}
 // expected-error @-2 {{expected expression}}
 // expected-error @-3 {{unterminated string literal}}
+
+
+do {
+
+    _ = [1, 2, 3].sorted(by: >)
+
+    func sorted(arrays: [[Int]], comparators: [(Int,Int)->(Bool)]) -> [[Int]] {
+        return [[]]
+    }
+
+    func sorted(d1: [String:[Int]], d2: [String:(Int,Int)->(Bool)]) -> [String:[Int]] {
+        return [:]
+    }
+
+    func funcIdentifier(lhs: Int, rhs: Int)->Bool { return true }
+
+
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [>, <])
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [>, (<)])
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [>, <,])
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [==, <, >])
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [>, <, funcIdentifier])
+    _ = sorted(arrays: [[9, 7, 4], [6, 7]], comparators: [funcIdentifier, <, funcIdentifier])
+    _ = sorted(d1: ["x":[1, 1], "y":[9,7]], d2: ["x": >, "y": >])
+    _ = sorted(d1: ["x":[1, 1], "y":[9,7]], d2: ["x": >, "y": ==])
+    _ = sorted(d1: ["x":[1, 1], "y":[9,7]], d2: ["x": >, "y": funcIdentifier])
+    _ = sorted(d1: ["x":[1, 1], "y":[9,7]], d2: ["x": >, "y": <,])
+    _ = sorted(d1: ["x":[1, 1], "y":[9,7]], d2: ["x": >, "y": ==,])
+
+
+
+
+    func foo(_ y:  ((Int,Int)->(Bool),(Int,Int)->(Bool))) {}
+    func bar(_ y:  (u: (Int,Int)->(Bool), v: (Int,Int)->(Bool))) {}
+
+    foo((<, >))
+    foo((==, ==))
+    bar((u: >, v: >))
+    bar((u: >, v: ==))
+
+    // Don't allow non-nested operator reference
+    var _: (Int,Int)->(Bool) = >; // expected-error {{expected expression after unary operator}}
+    // expected-error@-1 {{expected initial value after '='}}
+
+}
