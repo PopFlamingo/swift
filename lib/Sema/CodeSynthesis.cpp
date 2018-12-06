@@ -81,7 +81,8 @@ static bool isOnDemandAccessor(AbstractStorageDecl *storage,
   // Note that we can't just use hasClangNode() because the importer
   // sometimes synthesizes things that lack clang nodes.
   auto *mod = storage->getDeclContext()->getModuleScopeContext();
-  return (cast<FileUnit>(mod)->getKind() == FileUnitKind::ClangModule);
+  return (cast<FileUnit>(mod)->getKind() == FileUnitKind::ClangModule ||
+          cast<FileUnit>(mod)->getKind() == FileUnitKind::DWARFModule);
 }
 
 /// Insert the specified decl into the DeclContext's member list.  If the hint
@@ -2186,7 +2187,7 @@ void TypeChecker::synthesizeFunctionBody(SynthesizedFunction fn) {
   llvm_unreachable("bad synthesized function kind");
 }
 
-/// \brief Create an implicit struct or class constructor.
+/// Create an implicit struct or class constructor.
 ///
 /// \param decl The struct or class for which a constructor will be created.
 /// \param ICK The kind of implicit constructor to create.

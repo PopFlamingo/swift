@@ -1184,7 +1184,12 @@ void IRGenerator::noteUseOfTypeGlobals(NominalTypeDecl *type,
   // Try to create a new record of the fact that we used this type.
   auto insertResult = LazyTypeGlobals.try_emplace(type);
   auto &entry = insertResult.first->second;
-  
+
+  // Imported structs and enums types are known to be lazy.
+  if (insertResult.second) {
+    entry.IsLazy = requiresForeignTypeMetadata(type);
+  }
+
   bool metadataWasUsed = entry.IsMetadataUsed;
   bool descriptorWasUsed = entry.IsDescriptorUsed;
 
@@ -3533,6 +3538,19 @@ llvm::GlobalValue *IRGenModule::defineAssociatedConformanceDescriptor(
                                             AssociatedConformance conformance,
                                             llvm::Constant *definition) {
   auto entity = LinkEntity::forAssociatedConformanceDescriptor(conformance);
+  return defineAlias(entity, definition);
+}
+
+llvm::Constant *IRGenModule::getAddrOfBaseConformanceDescriptor(
+                                                BaseConformance conformance) {
+  auto entity = LinkEntity::forBaseConformanceDescriptor(conformance);
+  return getAddrOfLLVMVariable(entity, ConstantInit(), DebugTypeInfo());
+}
+
+llvm::GlobalValue *IRGenModule::defineBaseConformanceDescriptor(
+                                            BaseConformance conformance,
+                                            llvm::Constant *definition) {
+  auto entity = LinkEntity::forBaseConformanceDescriptor(conformance);
   return defineAlias(entity, definition);
 }
 

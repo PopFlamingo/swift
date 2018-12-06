@@ -230,7 +230,7 @@ public:
   /// added to the current SILModule.
   void emitFunction(FuncDecl *fd);
   
-  /// \brief Generates code for the given closure expression and adds the
+  /// Generates code for the given closure expression and adds the
   /// SILFunction to the current SILModule under the name SILDeclRef(ce).
   SILFunction *emitClosure(AbstractClosureExpr *ce);
   /// Generates code for the given ConstructorDecl and adds
@@ -306,6 +306,9 @@ public:
 
   /// Emit the default witness table for a resilient protocol.
   void emitDefaultWitnessTable(ProtocolDecl *protocol);
+
+  /// Emit the self-conformance witness table for a protocol.
+  void emitSelfConformanceWitnessTable(ProtocolDecl *protocol);
 
   /// Emit the lazy initializer function for a global pattern binding
   /// declaration.

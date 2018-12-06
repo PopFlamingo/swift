@@ -398,7 +398,7 @@ private:
   void doFixUp(SILFunction *F);
 };
 
-/// \brief A SILBuilder that automatically invokes postprocess on each
+/// A SILBuilder that automatically invokes postprocess on each
 /// inserted instruction.
 template<class SomeSILCloner, unsigned N = 4>
 class SILBuilderWithPostProcess : public SILBuilder {
@@ -711,7 +711,7 @@ void SILCloner<ImplClass>::visitBlocksDepthFirst(SILBasicBlock *startBB) {
   }
 }
 
-/// \brief Clean-up after cloning.
+/// Clean-up after cloning.
 template<typename ImplClass>
 void
 SILCloner<ImplClass>::doFixUp(SILFunction *F) {
@@ -2130,8 +2130,8 @@ void SILCloner<ImplClass>::visitUncheckedOwnershipConversionInst(
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
   ValueOwnershipKind Kind = SILValue(Inst).getOwnershipKind();
   if (getOpValue(Inst->getOperand()).getOwnershipKind() ==
-      ValueOwnershipKind::Trivial) {
-    Kind = ValueOwnershipKind::Trivial;
+      ValueOwnershipKind::Any) {
+    Kind = ValueOwnershipKind::Any;
   }
   recordClonedInstruction(Inst, getBuilder().createUncheckedOwnershipConversion(
                                     getOpLocation(Inst->getLoc()),

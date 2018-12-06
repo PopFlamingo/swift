@@ -194,8 +194,8 @@ FOR_KNOWN_FOUNDATION_TYPES(CACHE_FOUNDATION_DECL)
 #define FUNC_DECL(Name, Id) FuncDecl *Get##Name = nullptr;
 #include "swift/AST/KnownDecls.def"
   
-  /// func _getBool(Builtin.Int1) -> Bool
-  FuncDecl *GetBoolDecl = nullptr;
+  /// Swift.Bool.init(_builtinBooleanLiteral:)
+  ConstructorDecl *BoolBuiltinInitDecl = nullptr;
   
   /// func ==(Int, Int) -> Bool
   FuncDecl *EqualIntDecl = nullptr;
@@ -219,23 +219,23 @@ FOR_KNOWN_FOUNDATION_TYPES(CACHE_FOUNDATION_DECL)
   //    -> Builtin.Int1
   FuncDecl *IsOSVersionAtLeastDecl = nullptr;
   
-  /// \brief The set of known protocols, lazily populated as needed.
+  /// The set of known protocols, lazily populated as needed.
   ProtocolDecl *KnownProtocols[NumKnownProtocols] = { };
 
-  /// \brief The various module loaders that import external modules into this
+  /// The various module loaders that import external modules into this
   /// ASTContext.
   SmallVector<std::unique_ptr<swift::ModuleLoader>, 4> ModuleLoaders;
 
-  /// \brief The module loader used to load Clang modules.
+  /// The module loader used to load Clang modules.
   ClangModuleLoader *TheClangModuleLoader = nullptr;
 
-  /// \brief Map from Swift declarations to raw comments.
+  /// Map from Swift declarations to raw comments.
   llvm::DenseMap<const Decl *, RawComment> RawComments;
 
-  /// \brief Map from Swift declarations to brief comments.
+  /// Map from Swift declarations to brief comments.
   llvm::DenseMap<const Decl *, StringRef> BriefComments;
 
-  /// \brief Map from declarations to foreign error conventions.
+  /// Map from declarations to foreign error conventions.
   /// This applies to both actual imported functions and to @objc functions.
   llvm::DenseMap<const AbstractFunctionDecl *,
                  ForeignErrorConvention> ForeignErrorConventions;
@@ -290,7 +290,7 @@ FOR_KNOWN_FOUNDATION_TYPES(CACHE_FOUNDATION_DECL)
                  ProtocolConformanceRef>
     DefaultAssociatedConformanceWitnesses;
 
-  /// \brief Structure that captures data that is segregated into different
+  /// Structure that captures data that is segregated into different
   /// arenas.
   struct Arena {
     llvm::DenseMap<Type, ErrorType *> ErrorTypesWithOriginal;
@@ -391,7 +391,7 @@ FOR_KNOWN_FOUNDATION_TYPES(CACHE_FOUNDATION_DECL)
 
   llvm::StringMap<OptionSet<SearchPathKind>> SearchPathsSet;
 
-  /// \brief The permanent arena.
+  /// The permanent arena.
   Arena Permanent;
 
   /// Temporary arena used for a constraint solver.
@@ -408,7 +408,7 @@ FOR_KNOWN_FOUNDATION_TYPES(CACHE_FOUNDATION_DECL)
     ConstraintSolverArena &operator=(ConstraintSolverArena &&) = delete;
   };
 
-  /// \brief The current constraint solver arena, if any.
+  /// The current constraint solver arena, if any.
   std::unique_ptr<ConstraintSolverArena> CurrentConstraintSolverArena;
 
   Arena &getArena(AllocationArena arena) {
@@ -996,32 +996,25 @@ lookupOperatorFunc(const ASTContext &ctx, StringRef oper, Type contextType,
   return nullptr;
 }
 
-/// Looks up the implementation (assumed to be singular) of a globally-defined
-/// standard library intrinsic function and passes the potential match to the
-/// given callback if it was found. If the callback returns true, then the
-/// match is returned; otherwise, nullptr is returned.
-/// \p ctx The AST context.
-/// \p name The name of the function.
-/// \p resolver The lazy resolver.
-/// \p callback A callback that takes as its two arguments the input type and
-///     result type of the candidate function declaration and returns true if
-///     the function matches the desired criteria.
-/// \return The matching function declaration, or nullptr if there was no match.
-static FuncDecl *
-lookupLibraryIntrinsicFunc(const ASTContext &ctx, StringRef name,
-                           LazyResolver *resolver,
-                           llvm::function_ref<bool(FunctionType *)> pred) {
-  Type inputType, resultType;
-  auto decl = findLibraryIntrinsic(ctx, name, resolver);
-  if (!decl)
+ConstructorDecl *ASTContext::getBoolBuiltinInitDecl() const {
+  if (getImpl().BoolBuiltinInitDecl)
+    return getImpl().BoolBuiltinInitDecl;
+
+  if (!getBoolDecl())
     return nullptr;
 
-  auto *funcTy = getIntrinsicCandidateType(decl, /*allowTypeMembers=*/false);
-  if (!funcTy)
+  DeclName initName(*const_cast<ASTContext *>(this),
+                    DeclBaseName::createConstructor(),
+                    { Id_builtinBooleanLiteral });
+  auto members = getBoolDecl()->lookupDirect(initName);
+
+  if (members.size() != 1)
     return nullptr;
 
-  if (pred(funcTy))
-    return decl;
+  if (auto init = dyn_cast<ConstructorDecl>(members[0])) {
+    getImpl().BoolBuiltinInitDecl = init;
+    return init;
+  }
 
   return nullptr;
 }
@@ -1044,22 +1037,6 @@ FuncDecl *ASTContext::getEqualIntDecl() const {
     return type->getResult()->isEqual(boolType);
   });
   getImpl().EqualIntDecl = decl;
-  return decl;
-}
-
-FuncDecl *ASTContext::getGetBoolDecl(LazyResolver *resolver) const {
-  if (getImpl().GetBoolDecl)
-    return getImpl().GetBoolDecl;
-
-  auto boolType = getBoolDecl()->getDeclaredType();
-  auto decl = lookupLibraryIntrinsicFunc(*this, "_getBool",
-                                         resolver, [=](FunctionType *type) {
-    // Look for the signature (Builtin.Int1) -> Bool
-    if (type->getParams().size() != 1) return false;
-    if (!isBuiltinInt1Type(type->getParams()[0].getOldType())) return false;
-    return type->getResult()->isEqual(boolType);
-  });
-  getImpl().GetBoolDecl = decl;
   return decl;
 }
 
@@ -1403,6 +1380,7 @@ void ASTContext::addExternalDecl(Decl *decl) {
 void ASTContext::addSynthesizedDecl(Decl *decl) {
   auto *mod = cast<FileUnit>(decl->getDeclContext()->getModuleScopeContext());
   if (mod->getKind() == FileUnitKind::ClangModule ||
+      mod->getKind() == FileUnitKind::DWARFModule ||
       mod->getKind() == FileUnitKind::SerializedAST) {
     ExternalDefinitions.insert(decl);
     return;
@@ -1419,7 +1397,7 @@ bool ASTContext::hadError() const {
   return Diags.hadAnyError();
 }
 
-/// \brief Retrieve the arena from which we should allocate storage for a type.
+/// Retrieve the arena from which we should allocate storage for a type.
 static AllocationArena getArena(RecursiveTypeProperties properties) {
   bool hasTypeVariable = properties.hasTypeVariable();
   return hasTypeVariable? AllocationArena::ConstraintSolver
@@ -1445,11 +1423,10 @@ void ASTContext::addSearchPath(StringRef searchPath, bool isFramework,
 
 void ASTContext::addModuleLoader(std::unique_ptr<ModuleLoader> loader,
                                  bool IsClang) {
-  if (IsClang) {
-    assert(!getImpl().TheClangModuleLoader && "Already have a Clang module loader");
+  if (IsClang && !getImpl().TheClangModuleLoader)
     getImpl().TheClangModuleLoader =
-      static_cast<ClangModuleLoader *>(loader.get());
-  }
+        static_cast<ClangModuleLoader *>(loader.get());
+
   getImpl().ModuleLoaders.push_back(std::move(loader));
 }
 

@@ -329,11 +329,12 @@ namespace {
     bool parseSILOwnership(ValueOwnershipKind &OwnershipKind) {
       // We parse here @ <identifier>.
       if (!P.consumeIf(tok::at_sign)) {
-        // Add error here.
-        return true;
+        // If we fail, we must have @any ownership.
+        OwnershipKind = ValueOwnershipKind::Any;
+        return false;
       }
 
-      StringRef AllOwnershipKinds[4] = {"trivial", "unowned", "owned",
+      StringRef AllOwnershipKinds[3] = {"unowned", "owned",
                                         "guaranteed"};
       return parseSILIdentifierSwitch(OwnershipKind, AllOwnershipKinds,
                                       diag::expected_sil_value_ownership_kind);
@@ -394,7 +395,7 @@ namespace {
                         StringRef &OpcodeName);
     bool parseSILDebugVar(SILDebugVariable &Var);
 
-    /// \brief Parses the basic block arguments as part of branch instruction.
+    /// Parses the basic block arguments as part of branch instruction.
     bool parseSILBBArgsAtBranch(SmallVector<SILValue, 6> &Args, SILBuilder &B);
 
     bool parseSILLocation(SILLocation &L);

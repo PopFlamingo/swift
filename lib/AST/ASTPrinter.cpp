@@ -418,7 +418,7 @@ static bool willUseTypeReprPrinting(TypeLoc tyLoc,
 }
 
 namespace {
-/// \brief AST pretty-printer.
+/// AST pretty-printer.
 class PrintAST : public ASTVisitor<PrintAST> {
   ASTPrinter &Printer;
   PrintOptions Options;
@@ -428,7 +428,7 @@ class PrintAST : public ASTVisitor<PrintAST> {
 
   friend DeclVisitor<PrintAST>;
 
-  /// \brief RAII object that increases the indentation level.
+  /// RAII object that increases the indentation level.
   class IndentRAII {
     PrintAST &Self;
     bool DoIndent;
@@ -446,12 +446,12 @@ class PrintAST : public ASTVisitor<PrintAST> {
     }
   };
 
-  /// \brief Indent the current number of indentation spaces.
+  /// Indent the current number of indentation spaces.
   void indent() {
     Printer.setIndent(IndentLevel);
   }
 
-  /// \brief Record the location of this declaration, which is about to
+  /// Record the location of this declaration, which is about to
   /// be printed, marking the name and signature end locations.
   template<typename FnTy>
   void recordDeclLoc(Decl *decl, const FnTy &NameFn,
@@ -758,7 +758,7 @@ private:
                           ArrayRef<AnyFunctionType::Param> params,
                           bool isAPINameByDefault);
 
-  /// \brief Print the function parameters in curried or selector style,
+  /// Print the function parameters in curried or selector style,
   /// to match the original function declaration.
   void printFunctionParameters(AbstractFunctionDecl *AFD);
 
@@ -1406,13 +1406,10 @@ void PrintAST::printSingleDepthOfGenericSignature(
         }
       } else {
         Printer.callPrintStructurePre(PrintStructureKind::GenericRequirement);
-        if (second) {
-          Requirement substReq(req.getKind(), first, second);
-          printRequirement(substReq);
-        } else {
-          Requirement substReq(req.getKind(), first, req.getLayoutConstraint());
-          printRequirement(substReq);
-        }
+
+        // We don't substitute type for the printed requirement so that the
+        // printed requirement agrees with separately reported generic parameters.
+        printRequirement(req);
         Printer.printStructurePost(PrintStructureKind::GenericRequirement);
       }
     }
@@ -3354,7 +3351,8 @@ class TypePrinter : public TypeVisitor<TypePrinter> {
 
     // Don't print qualifiers for imported types.
     for (auto File : M->getFiles()) {
-      if (File->getKind() == FileUnitKind::ClangModule)
+      if (File->getKind() == FileUnitKind::ClangModule ||
+          File->getKind() == FileUnitKind::DWARFModule)
         return false;
     }
 
@@ -4160,11 +4158,15 @@ void LayoutConstraintInfo::print(ASTPrinter &Printer,
 
 void GenericSignature::print(raw_ostream &OS, PrintOptions Opts) const {
   StreamPrinter Printer(OS);
-  PrintAST(Printer, Opts)
-      .printGenericSignature(this,
-                             PrintAST::PrintParams |
-                             PrintAST::PrintRequirements);
+  print(Printer, Opts);
 }
+
+void GenericSignature::print(ASTPrinter &Printer, PrintOptions Opts) const {
+  PrintAST(Printer, Opts).printGenericSignature(this,
+                                                PrintAST::PrintParams |
+                                                PrintAST::PrintRequirements);
+}
+
 void GenericSignature::dump() const {
   print(llvm::errs());
   llvm::errs() << '\n';

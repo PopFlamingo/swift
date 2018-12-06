@@ -557,6 +557,12 @@ bool Decl::isWeakImported(ModuleDecl *fromModule) const {
   if (auto *dtor = dyn_cast<DestructorDecl>(this))
     return cast<ClassDecl>(dtor->getDeclContext())->isWeakImported(fromModule);
 
+  auto *dc = getDeclContext();
+  if (auto *ext = dyn_cast<ExtensionDecl>(dc))
+    return ext->isWeakImported(fromModule);
+  if (auto *ntd = dyn_cast<NominalTypeDecl>(dc))
+    return ntd->isWeakImported(fromModule);
+
   // FIXME: Also check availability when containingModule is resilient.
   return false;
 }
@@ -3904,15 +3910,22 @@ bool ProtocolDecl::requiresClassSlow() {
   return Bits.ProtocolDecl.RequiresClass;
 }
 
+bool ProtocolDecl::requiresSelfConformanceWitnessTable() const {
+  return isSpecificProtocol(KnownProtocolKind::Error);
+}
+
 bool ProtocolDecl::existentialConformsToSelfSlow() {
   // Assume for now that the existential conforms to itself; this
   // prevents circularity issues.
   Bits.ProtocolDecl.ExistentialConformsToSelfValid = true;
   Bits.ProtocolDecl.ExistentialConformsToSelf = true;
 
+  // If it's not @objc, it conforms to itself only if it has a
+  // self-conformance witness table.
   if (!isObjC()) {
-    Bits.ProtocolDecl.ExistentialConformsToSelf = false;
-    return false;
+    bool hasSelfConformance = requiresSelfConformanceWitnessTable();
+    Bits.ProtocolDecl.ExistentialConformsToSelf = hasSelfConformance;
+    return hasSelfConformance;
   }
 
   // Check whether this protocol conforms to itself.
@@ -4561,7 +4574,7 @@ void VarDecl::markInvalid() {
   setInterfaceType(ErrorType::get(Ctx));
 }
 
-/// \brief Returns whether the var is settable in the specified context: this
+/// Returns whether the var is settable in the specified context: this
 /// is either because it is a stored var, because it has a custom setter, or
 /// is a let member in an initializer.
 bool VarDecl::isSettable(const DeclContext *UseDC,
@@ -4892,7 +4905,7 @@ ParamDecl::ParamDecl(ParamDecl *PD, bool withTypes)
 }
 
 
-/// \brief Retrieve the type of 'self' for the given context.
+/// Retrieve the type of 'self' for the given context.
 Type DeclContext::getSelfTypeInContext() const {
   assert(isTypeContext());
 
@@ -4906,7 +4919,7 @@ Type DeclContext::getSelfTypeInContext() const {
   return getDeclaredTypeInContext();
 }
 
-/// \brief Retrieve the interface type of 'self' for the given context.
+/// Retrieve the interface type of 'self' for the given context.
 Type DeclContext::getSelfInterfaceType() const {
   assert(isTypeContext());
 

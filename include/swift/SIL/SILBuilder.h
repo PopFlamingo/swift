@@ -380,7 +380,7 @@ public:
     moveBlockTo(BB, BB->getParent()->end());
   }
 
-  /// \brief Move the insertion point to the end of the given block.
+  /// Move the insertion point to the end of the given block.
   ///
   /// Assumes that no insertion point is currently active.
   void emitBlock(SILBasicBlock *BB) {
@@ -388,7 +388,7 @@ public:
     setInsertionPoint(BB);
   }
 
-  /// \brief Branch to the given block if there's an active insertion point,
+  /// Branch to the given block if there's an active insertion point,
   /// then move the insertion point to the end of that block.
   void emitBlock(SILBasicBlock *BB, SILLocation BranchLoc);
 
@@ -2095,7 +2095,8 @@ public:
   /// lowering for the non-address value.
   void emitDestroyValueOperation(SILLocation Loc, SILValue v) {
     assert(!v->getType().isAddress());
-    if (v.getOwnershipKind() == ValueOwnershipKind::Trivial)
+    if (F->hasQualifiedOwnership() &&
+        v.getOwnershipKind() == ValueOwnershipKind::Any)
       return;
     auto &lowering = getTypeLowering(v->getType());
     lowering.emitDestroyValue(*this, Loc, v);
