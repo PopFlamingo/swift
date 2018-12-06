@@ -1,8 +1,8 @@
-//===--- ThreadBarriers.swift --------------------------------------------===//
+//===--- ThreadBarriers.swift ---------------------------------------------===//
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2017 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -122,9 +122,8 @@ public func _stdlib_thread_barrier_wait(
   if barrier.pointee.numThreadsWaiting < barrier.pointee.count {
     // Put the thread to sleep.
 #if os(Windows)
-    // TODO(compnerd) modularize rpc.h to get INFIITE (0xffffffff)
     if SleepConditionVariableSRW(barrier.pointee.cond!, barrier.pointee.mutex!,
-                                 0xffffffff, 0) == 0 {
+                                 INFINITE, 0) == 0 {
       return -1
     }
     ReleaseSRWLockExclusive(barrier.pointee.mutex!)

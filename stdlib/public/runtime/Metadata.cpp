@@ -2364,6 +2364,11 @@ static void initClassVTable(ClassMetadata *self) {
       auto *baseClass = descriptor.Class.get();
       auto *baseMethod = descriptor.Method.get();
 
+      // If the base method is null, it's an unavailable weak-linked
+      // symbol.
+      if (baseClass == nullptr || baseMethod == nullptr)
+        continue;
+
       // Calculate the base method's vtable offset from the
       // base method descriptor. The offset will be relative
       // to the base class's vtable start offset.
@@ -2818,7 +2823,7 @@ swift::swift_lookUpClassMethod(const ClassMetadata *metadata,
 /*** Metatypes *************************************************************/
 /***************************************************************************/
 
-/// \brief Find the appropriate value witness table for the given type.
+/// Find the appropriate value witness table for the given type.
 static const ValueWitnessTable *
 getMetatypeValueWitnesses(const Metadata *instanceType) {
   // When metatypes are accessed opaquely, they always have a "thick"
@@ -2857,7 +2862,7 @@ namespace {
 /// The uniquing structure for metatype type metadata.
 static SimpleGlobalCache<MetatypeCacheEntry> MetatypeTypes;
 
-/// \brief Fetch a uniqued metadata for a metatype type.
+/// Fetch a uniqued metadata for a metatype type.
 SWIFT_RUNTIME_EXPORT
 const MetatypeMetadata *
 swift::swift_getMetatypeMetadata(const Metadata *instanceMetadata) {
@@ -2981,7 +2986,7 @@ ExistentialMetatypeValueWitnessTableCacheEntry(unsigned numWitnessTables) {
   assert(getNumWitnessTables() == numWitnessTables);
 }
 
-/// \brief Fetch a uniqued metadata for a metatype type.
+/// Fetch a uniqued metadata for a metatype type.
 SWIFT_RUNTIME_EXPORT
 const ExistentialMetatypeMetadata *
 swift::swift_getExistentialMetatypeMetadata(const Metadata *instanceMetadata) {
@@ -3488,7 +3493,7 @@ swift::_getSimpleProtocolTypeMetadata(const ProtocolDescriptor *protocol) {
                                           &protocolRef);
 }
 
-/// \brief Fetch a uniqued metadata for an existential type. The array
+/// Fetch a uniqued metadata for an existential type. The array
 /// referenced by \c protocols will be sorted in-place.
 const ExistentialTypeMetadata *
 swift::swift_getExistentialTypeMetadata(
@@ -3559,7 +3564,7 @@ ExistentialCacheEntry::ExistentialCacheEntry(Key key) {
   }
 }
 
-/// \brief Perform a copy-assignment from one existential container to another.
+/// Perform a copy-assignment from one existential container to another.
 /// Both containers must be of the same existential type representable with no
 /// witness tables.
 OpaqueValue *swift::swift_assignExistentialWithCopy0(OpaqueValue *dest,
@@ -3569,7 +3574,7 @@ OpaqueValue *swift::swift_assignExistentialWithCopy0(OpaqueValue *dest,
   return Witnesses::assignWithCopy(dest, const_cast<OpaqueValue*>(src), type);
 }
 
-/// \brief Perform a copy-assignment from one existential container to another.
+/// Perform a copy-assignment from one existential container to another.
 /// Both containers must be of the same existential type representable with one
 /// witness table.
 OpaqueValue *swift::swift_assignExistentialWithCopy1(OpaqueValue *dest,
@@ -3579,7 +3584,7 @@ OpaqueValue *swift::swift_assignExistentialWithCopy1(OpaqueValue *dest,
   return Witnesses::assignWithCopy(dest, const_cast<OpaqueValue*>(src), type);
 }
 
-/// \brief Perform a copy-assignment from one existential container to another.
+/// Perform a copy-assignment from one existential container to another.
 /// Both containers must be of the same existential type representable with the
 /// same number of witness tables.
 OpaqueValue *swift::swift_assignExistentialWithCopy(OpaqueValue *dest,
@@ -3997,6 +4002,7 @@ static bool doesNotRequireInstantiation(
 /// witnesses stored in the generic witness table structure itself.
 static void initializeResilientWitnessTable(
                               const ProtocolConformanceDescriptor *conformance,
+                              const Metadata *conformingType,
                               const GenericWitnessTable *genericTable,
                               void **table) {
   auto protocol = conformance->getProtocol();
@@ -4010,7 +4016,7 @@ static void initializeResilientWitnessTable(
     auto reqDescriptor = witness.Requirement.get();
 
     // The requirement descriptor may be NULL, in which case this is a
-    // requirement introduced in a later version of the protocol./
+    // requirement introduced in a later version of the protocol.
     if (!reqDescriptor) continue;
 
     // If the requirement descriptor doesn't land within the bounds of the
@@ -4033,14 +4039,24 @@ static void initializeResilientWitnessTable(
   for (size_t i = 0, e = protocol->NumRequirements; i < e; ++i) {
     unsigned witnessIndex = WitnessTableFirstRequirementOffset + i;
 
+    // If we don't have a witness, fill in the default implementation.
     // If we already have a witness, there's nothing to do.
-    if (table[witnessIndex])
-      continue;
-
-    // Otherwise, fill in a default implementation.
     auto &reqt = requirements[i];
-    void *impl = reqt.DefaultImplementation.get();
-    table[witnessIndex] = impl;
+    if (!table[witnessIndex]) {
+      void *impl = reqt.DefaultImplementation.get();
+      table[witnessIndex] = impl;
+    }
+
+    // Realize base protocol witnesses.
+    if (reqt.Flags.getKind() == ProtocolRequirementFlags::Kind::BaseProtocol &&
+        table[witnessIndex]) {
+      // Realize the base protocol witness table.
+      auto baseReq = protocol->getRequirementBaseDescriptor();
+      (void)swift_getAssociatedConformanceWitness((WitnessTable *)table,
+                                                  conformingType,
+                                                  conformingType,
+                                                  baseReq, &reqt);
+    }
   }
 }
 
@@ -4074,17 +4090,42 @@ WitnessTableCacheEntry::allocate(
   // Advance the address point; the private storage area is accessed via
   // negative offsets.
   auto table = fullTable + privateSizeInWords;
-  auto pattern = reinterpret_cast<void * const *>(
-                   &*conformance->getWitnessTablePattern());
+  if (auto pattern =
+          reinterpret_cast<void * const *>(
+            &*conformance->getWitnessTablePattern())) {
+    // Fill in the provided part of the requirements from the pattern.
+    for (size_t i = 0, e = numPatternWitnesses; i < e; ++i) {
+      table[i] = pattern[i];
+    }
+  } else {
+    // Put the conformance descriptor in place. Instantiation will fill in the
+    // rest.
+    assert(numPatternWitnesses == 0);
+    table[0] = (void *)conformance;
+  }
 
-  // Fill in the provided part of the requirements from the pattern.
-  for (size_t i = 0, e = numPatternWitnesses; i < e; ++i) {
-    table[i] = pattern[i];
+  // Copy any instantiation arguments that correspond to conditional
+  // requirements into the private area.
+  {
+    unsigned currentInstantiationArg = 0;
+    auto copyNextInstantiationArg = [&] {
+      assert(currentInstantiationArg < privateSizeInWords);
+      table[-1 - (int)currentInstantiationArg] =
+        const_cast<void *>(instantiationArgs[currentInstantiationArg]);
+      ++currentInstantiationArg;
+    };
+
+    for (const auto &conditionalRequirement
+          : conformance->getConditionalRequirements()) {
+      if (conditionalRequirement.Flags.hasKeyArgument())
+        copyNextInstantiationArg();
+      if (conditionalRequirement.Flags.hasExtraArgument())
+        copyNextInstantiationArg();
+    }
   }
 
   // Fill in any default requirements.
-  initializeResilientWitnessTable(conformance, genericTable, table);
-
+  initializeResilientWitnessTable(conformance, Type, genericTable, table);
   auto castTable = reinterpret_cast<WitnessTable*>(table);
 
   // Call the instantiation function if present.

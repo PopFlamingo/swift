@@ -1,8 +1,8 @@
-//===--- SwiftPrivateThreadExtras.swift ----------------------------------===//
+//===--- SwiftPrivateThreadExtras.swift -----------------------------------===//
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2017 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -116,19 +116,17 @@ public func _stdlib_thread_join<Result>(
   _ resultType: Result.Type
 ) -> (CInt, Result?) {
 #if os(Windows)
-  // TODO(compnerd) modularize rpc.h for INFINITE (0xffffffff)
-  let result = WaitForSingleObject(thread, 0xffffffff);
-  // TODO(compnerd) modularize WinBase.h for WAIT_OBJECT_0 (0)
-  if result == 0 {
-    let threadResult: DWORD = 0
+  let result = WaitForSingleObject(thread, INFINITE)
+  if result == WAIT_OBJECT_0 {
+    var threadResult: DWORD = 0
     GetExitCodeThread(thread, &threadResult)
     CloseHandle(thread)
 
-    return (result,
+    return (CInt(result),
             UnsafeMutablePointer<DWORD>(&threadResult)
                 .withMemoryRebound(to: Result.self, capacity: 1){ $0.pointee })
   } else {
-    return (result, nil)
+    return (CInt(result), nil)
   }
 #else
   var threadResultRawPtr: UnsafeMutableRawPointer?

@@ -304,15 +304,18 @@ static void prepareGenericParamList(GenericParamList *genericParams) {
 /// context have been configured.
 static void configureOuterGenericParams(const GenericContext *dc) {
   auto genericParams = dc->getGenericParams();
-  if (!genericParams) return;
 
-  if (genericParams->getOuterParameters()) return;
+  // If we already configured the outer parameters, we're done.
+  if (genericParams && genericParams->getOuterParameters())
+    return;
 
   DeclContext *outerDC = dc->getParent();
   while (!outerDC->isModuleScopeContext()) {
     if (auto outerDecl = outerDC->getAsDecl()) {
       if (auto outerGenericDC = outerDecl->getAsGenericContext()) {
-        genericParams->setOuterParameters(outerGenericDC->getGenericParams());
+        if (genericParams)
+          genericParams->setOuterParameters(outerGenericDC->getGenericParams());
+
         configureOuterGenericParams(outerGenericDC);
         return;
       }
@@ -824,7 +827,7 @@ static Optional<Type> getTypeOfCompletionContextExpr(
   return None;
 }
 
-/// \brief Return the type of an expression parsed during code completion, or
+/// Return the type of an expression parsed during code completion, or
 /// a null \c Type on error.
 Optional<Type> swift::getTypeOfCompletionContextExpr(
                         ASTContext &Ctx,
@@ -840,7 +843,7 @@ Optional<Type> swift::getTypeOfCompletionContextExpr(
                                           referencedDecl);
 }
 
-/// \brief Return the type of operator function for specified LHS, or a null
+/// Return the type of operator function for specified LHS, or a null
 /// \c Type on error.
 FunctionType *
 swift::getTypeOfCompletionOperator(DeclContext *DC, Expr *LHS,
